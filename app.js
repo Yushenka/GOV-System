@@ -57,7 +57,14 @@ const els = {
 };
 
 function hasValidConfig() {
-  return typeof config.supabaseUrl === "string" && config.supabaseUrl.startsWith("https://") && !config.supabaseUrl.includes("YOUR-PROJECT-REF");
+  return (
+    typeof config.supabaseUrl === "string" &&
+    config.supabaseUrl.startsWith("https://") &&
+    !config.supabaseUrl.includes("YOUR-PROJECT-REF") &&
+    typeof config.supabasePublishableKey === "string" &&
+    config.supabasePublishableKey.length > 20 &&
+    !config.supabasePublishableKey.includes("YOUR_SUPABASE_PUBLISHABLE_KEY")
+  );
 }
 
 function functionUrl(name) {
@@ -68,7 +75,9 @@ async function callFunction(name, payload) {
   const response = await fetch(functionUrl(name), {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      "apikey": config.supabasePublishableKey,
+      "Authorization": `Bearer ${config.supabasePublishableKey}`
     },
     body: JSON.stringify(payload)
   });
