@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GOV • Кадровий аудит</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="setup-notice hidden" id="setupNotice">
+    <div class="setup-notice-card">
+      <h2>Сайт ще не підключений</h2>
+      <p>Відкрийте файл <code>config.js</code> і вставте адресу вашого Supabase-проєкту.</p>
+    </div>
+  </div>
+
+  <section class="login-screen" id="loginScreen">
+    <div class="login-card">
+      <div class="brand compact-brand">
+        <div class="brand-mark"></div>
+        <div>
+          <p class="eyebrow">Фракційна система</p>
+          <h1>Кадровий аудит</h1>
+        </div>
+      </div>
+
+      <div class="login-copy">
+        <h2>Вхід у систему</h2>
+        <p>Введіть короткий логін керівного складу. Після входу система автоматично підтягне ім'я, статік і ранг.</p>
+      </div>
+
+      <form id="loginForm" class="login-form">
+        <label class="field">
+          <span>Логін</span>
+          <input id="loginInput" placeholder="Введіть логін..." autocomplete="username" />
+        </label>
+
+        <p class="login-error hidden" id="loginError"></p>
+        <button class="primary-btn login-btn" id="loginButton" type="submit">Увійти</button>
+      </form>
+    </div>
+  </section>
+
+  <div class="app-shell hidden" id="appShell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div>
+          <p class="eyebrow">Фракційна система</p>
+          <h1>Кадровий аудит</h1>
+        </div>
+      </div>
+
+      <div class="current-user-box">
+        <p class="current-user-title">Активний профіль</p>
+        <div class="current-user-name" id="currentUserName">—</div>
+        <div class="current-user-meta" id="currentUserMeta">—</div>
+        <div class="current-user-badge" id="currentUserBadge">—</div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item active" data-view-target="audit" type="button">
+          <span class="nav-icon">◉</span>
+          <span>Аудит</span>
+        </button>
+        <button class="nav-item" data-view-target="history" type="button">
+          <span class="nav-icon">◌</span>
+          <span>Історія</span>
+        </button>
+      </nav>
+
+      <button class="ghost-btn sidebar-logout" id="logoutButton" type="button">Вийти</button>
+    </aside>
+
+    <main class="workspace">
+      <section class="view active" data-view="audit">
+        <header class="view-header">
+          <div>
+            <p class="eyebrow">Основне вікно</p>
+            <h2>Кадровий аудит</h2>
+            <p class="subtle">Усі кадрові дії оформлюються тут і відразу потрапляють у Discord та журнал історії.</p>
+          </div>
+          <div class="status-pill" id="topStatus">Готово до роботи</div>
+        </header>
+
+        <div class="content-grid">
+          <div class="panel">
+            <div class="panel-title">Ініціатор</div>
+            <div class="form-grid two-col">
+              <label class="field">
+                <span>Ім'я та прізвище</span>
+                <input id="initiatorName" readonly />
+              </label>
+              <label class="field">
+                <span>Логін</span>
+                <input id="initiatorLogin" readonly />
+              </label>
+              <label class="field">
+                <span>Static ID</span>
+                <input id="initiatorStaticId" readonly />
+              </label>
+              <label class="field">
+                <span>Ранг</span>
+                <input id="initiatorRank" readonly />
+              </label>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title">Працівник</div>
+
+            <div class="target-mode active" id="existingTargetBlock">
+              <div class="form-grid two-col">
+                <label class="field single-field">
+                  <span>Оберіть працівника</span>
+                  <select id="targetSelect"></select>
+                </label>
+                <label class="field">
+                  <span>Static ID</span>
+                  <input id="targetStaticId" readonly />
+                </label>
+                <label class="field">
+                  <span>Поточний ранг</span>
+                  <input id="targetRank" readonly />
+                </label>
+              </div>
+            </div>
+
+            <div class="target-mode" id="hireTargetBlock">
+              <div class="form-grid two-col">
+                <label class="field">
+                  <span>Ім'я та прізвище</span>
+                  <input id="hireFullName" placeholder="Введіть ім'я працівника..." />
+                </label>
+                <label class="field">
+                  <span>Static ID</span>
+                  <input id="hireStaticId" placeholder="Введіть static id..." />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel panel-large">
+            <div class="panel-title">Дія</div>
+
+            <div class="action-group" id="actionGroup">
+              <button class="action-pill active" data-action="hire" type="button">Прийнято</button>
+              <button class="action-pill" data-action="promote" type="button">Підвищено</button>
+              <button class="action-pill" data-action="transfer" type="button">Переведено</button>
+              <button class="action-pill" data-action="fire" type="button">Звільнено</button>
+            </div>
+
+            <div class="form-grid two-col" id="rankFieldBlock">
+              <label class="field single-field">
+                <span>Новий ранг</span>
+                <select id="newRankSelect"></select>
+              </label>
+            </div>
+
+            <label class="field">
+              <span>Пояснення</span>
+              <textarea id="reasonInput" rows="4" placeholder="Вкажіть коротке пояснення до кадрової дії..."></textarea>
+            </label>
+          </div>
+
+          <div class="panel submit-panel">
+            <div>
+              <div class="panel-title">Підсумок</div>
+              <p class="subtle" id="summaryText">Оберіть працівника, дію і пояснення.</p>
+              <p class="status-message" id="statusMessage"></p>
+            </div>
+            <div class="button-row">
+              <button class="ghost-btn" id="resetButton" type="button">Скинути</button>
+              <button class="primary-btn" id="submitButton" type="button">Відправити</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" data-view="history">
+        <header class="view-header">
+          <div>
+            <p class="eyebrow">Журнал дій</p>
+            <h2>Історія кадрових змін</h2>
+            <p class="subtle">Тут зберігаються всі прийоми, підвищення, переведення та звільнення.</p>
+          </div>
+          <div class="status-pill muted" id="historyCount">0 записів</div>
+        </header>
+
+        <div class="panel history-panel">
+          <div class="history-toolbar">
+            <input class="history-search-input" id="historySearch" placeholder="Пошук по імені, статіку або дії..." />
+          </div>
+
+          <div class="history-list" id="historyList"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
