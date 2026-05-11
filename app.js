@@ -35,7 +35,8 @@ const els = {
   initiatorLogin: document.getElementById("initiatorLogin"),
   initiatorStaticId: document.getElementById("initiatorStaticId"),
   initiatorRank: document.getElementById("initiatorRank"),
-  targetSelect: document.getElementById("targetSelect"),
+  targetLookupInput: document.getElementById("targetLookupInput"),
+  targetResolvedName: document.getElementById("targetResolvedName"),
   targetStaticId: document.getElementById("targetStaticId"),
   targetRank: document.getElementById("targetRank"),
   hireFullName: document.getElementById("hireFullName"),
@@ -98,6 +99,27 @@ async function apiFetchJson(url, options = {}) {
   return data;
 }
 
+async function restFetchJson(url) {
+  const response = await fetch(url, {
+    method: "GET",
+    cache: "no-store",
+    headers: {
+      apikey: config.supabasePublishableKey
+    }
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message =
+      (data && (data.message || data.error || data.msg || data.details)) ||
+      "Не вдалося отримати дані із Supabase.";
+    throw new Error(message);
+  }
+
+  return data;
+}
+
 async function callFunction(name, payload) {
   return apiFetchJson(functionUrl(name), {
     method: "POST",
@@ -136,7 +158,8 @@ function formatDateTime(value) {
 }
 
 function getSelectedExistingMember() {
-  return state.members.find((member) => member.static_id === els.targetSelect.value) || null;
+  const lookup = els.targetLookupInput.value.trim();
+  return state.members.find((member) => member.static_id === lookup) || null;
 }
 
 function isHireAction() {
@@ -184,14 +207,6 @@ function renderCurrentUser() {
 }
 
 function renderMembers() {
-  els.targetSelect.innerHTML = state.members
-    .map((member) => `<option value="${escapeHtml(member.static_id)}">${escapeHtml(member.full_name)} | ${escapeHtml(member.static_id)}</option>`)
-    .join("");
-
-  if (!els.targetSelect.value && state.members[0]) {
-    els.targetSelect.value = state.members[0].static_id;
-  }
-
   updateExistingTargetFields();
 }
 
@@ -252,6 +267,7 @@ function renderHistory() {
 
 function updateExistingTargetFields() {
   const member = getSelectedExistingMember();
+  els.targetResolvedName.value = member ? member.full_name : "";
   els.targetStaticId.value = member ? member.static_id : "";
   els.targetRank.value = member ? formatRank(member.current_rank_number, member.current_rank_name) : "";
   updateSummary();
@@ -297,7 +313,7 @@ function updateSummary() {
     const nextRank = state.ranks.find((rank) => String(rank.rank_number) === els.newRankSelect.value);
 
     if (!member) {
-      els.summaryText.textContent = "Оберіть працівника для дії.";
+      els.summaryText.textContent = "Вкажіть правильний static ID працівника для дії.";
       return;
     }
 
@@ -325,9 +341,10 @@ function resetAuditForm() {
     els.newRankSelect.value = String(state.ranks[0].rank_number);
   }
 
-  if (state.members[0]) {
-    els.targetSelect.value = state.members[0].static_id;
-  }
+  els.targetLookupInput.value = "";
+  els.targetResolvedName.value = "";
+  els.targetStaticId.value = "";
+  els.targetRank.value = "";
 
   updateActionVisibility();
   updateExistingTargetFields();
@@ -337,23 +354,23 @@ function resetAuditForm() {
 async function fetchBootstrapData(loginCode) {
   const encodedLogin = encodeURIComponent(loginCode);
 
-  const currentUserPromise = apiFetchJson(
+  const currentUserPromise = restFetchJson(
     restUrl(
       `members?select=static_id,full_name,login_code,current_rank_number,current_rank_name,is_leadership,is_active&login_code=eq.${encodedLogin}&is_active=eq.true&is_leadership=eq.true&limit=1`
     )
   );
 
-  const membersPromise = apiFetchJson(
+  const membersPromise = restFetchJson(
     restUrl(
       "members?select=static_id,full_name,current_rank_number,current_rank_name,is_active&is_active=eq.true&order=full_name.asc"
     )
   );
 
-  const ranksPromise = apiFetchJson(
+  const ranksPromise = restFetchJson(
     restUrl("ranks?select=rank_number,rank_name,is_active,sort_order&is_active=eq.true&order=rank_number.asc")
   );
 
-  const historyPromise = apiFetchJson(
+  const historyPromise = restFetchJson(
     restUrl(
       "audit_history?select=id,action_type,initiator_full_name,target_full_name,target_static_id,previous_rank_number,previous_rank_name,new_rank_number,new_rank_name,reason_text,created_at&order=created_at.desc&limit=100"
     )
@@ -467,7 +484,7 @@ function getSubmitPayload() {
   const targetMember = getSelectedExistingMember();
 
   if (!targetMember) {
-    throw new Error("Оберіть працівника.");
+    throw new Error("Вкажіть правильний static ID працівника.");
   }
 
   const payload = {
@@ -558,7 +575,7 @@ function init() {
 
   els.loginForm.addEventListener("submit", handleLogin);
   els.logoutButton.addEventListener("click", logout);
-  els.targetSelect.addEventListener("change", updateExistingTargetFields);
+  els.targetLookupInput.addEventListener("input", updateExistingTargetFields);
   els.newRankSelect.addEventListener("change", updateSummary);
   els.reasonInput.addEventListener("input", updateSummary);
   els.hireFullName.addEventListener("input", updateSummary);
