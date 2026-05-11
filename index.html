@@ -160,7 +160,13 @@
             <div class="form-grid two-col" id="rankFieldBlock">
               <label class="field single-field">
                 <span>Новий ранг</span>
-                <select id="newRankSelect"></select>
+                <div class="rank-picker" id="rankPicker">
+                  <button class="rank-picker-trigger" id="newRankTrigger" type="button" aria-expanded="false">
+                    <span id="newRankTriggerText">Оберіть ранг</span>
+                    <span class="rank-picker-chevron">⌄</span>
+                  </button>
+                  <div class="rank-picker-menu hidden" id="newRankMenu"></div>
+                </div>
               </label>
             </div>
 

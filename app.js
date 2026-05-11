@@ -44,7 +44,10 @@ const els = {
   existingTargetBlock: document.getElementById("existingTargetBlock"),
   hireTargetBlock: document.getElementById("hireTargetBlock"),
   actionGroup: document.getElementById("actionGroup"),
-  newRankSelect: document.getElementById("newRankSelect"),
+  rankPicker: document.getElementById("rankPicker"),
+  newRankTrigger: document.getElementById("newRankTrigger"),
+  newRankTriggerText: document.getElementById("newRankTriggerText"),
+  newRankMenu: document.getElementById("newRankMenu"),
   rankFieldBlock: document.getElementById("rankFieldBlock"),
   reasonInput: document.getElementById("reasonInput"),
   summaryText: document.getElementById("summaryText"),
@@ -61,10 +64,8 @@ function hasValidConfig() {
   return (
     typeof config.supabaseUrl === "string" &&
     config.supabaseUrl.startsWith("https://") &&
-    !config.supabaseUrl.includes("YOUR-PROJECT-REF") &&
     typeof config.supabasePublishableKey === "string" &&
-    config.supabasePublishableKey.length > 20 &&
-    !config.supabasePublishableKey.includes("YOUR_SUPABASE_PUBLISHABLE_KEY")
+    config.supabasePublishableKey.length > 20
   );
 }
 
@@ -162,6 +163,42 @@ function getSelectedExistingMember() {
   return state.members.find((member) => member.static_id === lookup) || null;
 }
 
+function getSelectedRankNumber() {
+  return Number(els.newRankTrigger.dataset.value || 0);
+}
+
+function setSelectedRankNumber(rankNumber) {
+  const rank = state.ranks.find((item) => Number(item.rank_number) === Number(rankNumber));
+  if (!rank) {
+    return;
+  }
+
+  els.newRankTrigger.dataset.value = String(rank.rank_number);
+  els.newRankTriggerText.textContent = formatRank(rank.rank_number, rank.rank_name);
+
+  [...els.newRankMenu.querySelectorAll(".rank-picker-option")].forEach((button) => {
+    button.classList.toggle("active", Number(button.dataset.rankNumber) === Number(rank.rank_number));
+  });
+}
+
+function closeRankMenu() {
+  els.newRankMenu.classList.add("hidden");
+  els.newRankTrigger.setAttribute("aria-expanded", "false");
+  els.rankPicker.classList.remove("open");
+}
+
+function toggleRankMenu() {
+  const isOpen = !els.newRankMenu.classList.contains("hidden");
+  if (isOpen) {
+    closeRankMenu();
+    return;
+  }
+
+  els.newRankMenu.classList.remove("hidden");
+  els.newRankTrigger.setAttribute("aria-expanded", "true");
+  els.rankPicker.classList.add("open");
+}
+
 function isHireAction() {
   return state.actionType === "hire";
 }
@@ -211,9 +248,27 @@ function renderMembers() {
 }
 
 function renderRanks() {
-  els.newRankSelect.innerHTML = state.ranks
-    .map((rank) => `<option value="${rank.rank_number}">[${rank.rank_number}] ${escapeHtml(rank.rank_name)}</option>`)
+  els.newRankMenu.innerHTML = state.ranks
+    .map(
+      (rank) => `
+        <button class="rank-picker-option" type="button" data-rank-number="${rank.rank_number}">
+          ${escapeHtml(formatRank(rank.rank_number, rank.rank_name))}
+        </button>
+      `
+    )
     .join("");
+
+  [...els.newRankMenu.querySelectorAll(".rank-picker-option")].forEach((button) => {
+    button.addEventListener("click", () => {
+      setSelectedRankNumber(Number(button.dataset.rankNumber));
+      closeRankMenu();
+      updateSummary();
+    });
+  });
+
+  if (state.ranks[0]) {
+    setSelectedRankNumber(state.ranks[0].rank_number);
+  }
 }
 
 function renderHistory() {
@@ -304,13 +359,13 @@ function updateSummary() {
 
   if (isHireAction()) {
     const fullName = els.hireFullName.value.trim() || "нового працівника";
-    const nextRank = state.ranks.find((rank) => String(rank.rank_number) === els.newRankSelect.value);
+    const nextRank = state.ranks.find((rank) => Number(rank.rank_number) === getSelectedRankNumber());
     const rankLabel = nextRank ? formatRank(nextRank.rank_number, nextRank.rank_name) : "обраний ранг";
 
     els.summaryText.textContent = `${state.currentUser.full_name} оформить дію "${actionLabel}" для ${fullName} з рангом ${rankLabel}.`;
   } else {
     const member = getSelectedExistingMember();
-    const nextRank = state.ranks.find((rank) => String(rank.rank_number) === els.newRankSelect.value);
+    const nextRank = state.ranks.find((rank) => Number(rank.rank_number) === getSelectedRankNumber());
 
     if (!member) {
       els.summaryText.textContent = "Вкажіть правильний static ID працівника для дії.";
@@ -338,7 +393,7 @@ function resetAuditForm() {
   els.reasonInput.value = "";
 
   if (state.ranks[0]) {
-    els.newRankSelect.value = String(state.ranks[0].rank_number);
+    setSelectedRankNumber(state.ranks[0].rank_number);
   }
 
   els.targetLookupInput.value = "";
@@ -349,6 +404,7 @@ function resetAuditForm() {
   updateActionVisibility();
   updateExistingTargetFields();
   setStatusMessage("");
+  closeRankMenu();
 }
 
 async function fetchBootstrapData(loginCode) {
@@ -464,7 +520,7 @@ function getSubmitPayload() {
   if (isHireAction()) {
     const targetFullName = els.hireFullName.value.trim();
     const targetStaticId = els.hireStaticId.value.trim();
-    const newRankNumber = Number(els.newRankSelect.value);
+    const newRankNumber = getSelectedRankNumber();
 
     if (!targetFullName || !targetStaticId) {
       throw new Error("Для прийому потрібно вказати ім'я та static id.");
@@ -496,7 +552,7 @@ function getSubmitPayload() {
   };
 
   if (!isFireAction()) {
-    payload.newRankNumber = Number(els.newRankSelect.value);
+    payload.newRankNumber = getSelectedRankNumber();
   }
 
   return payload;
@@ -576,7 +632,7 @@ function init() {
   els.loginForm.addEventListener("submit", handleLogin);
   els.logoutButton.addEventListener("click", logout);
   els.targetLookupInput.addEventListener("input", updateExistingTargetFields);
-  els.newRankSelect.addEventListener("change", updateSummary);
+  els.newRankTrigger.addEventListener("click", toggleRankMenu);
   els.reasonInput.addEventListener("input", updateSummary);
   els.hireFullName.addEventListener("input", updateSummary);
   els.hireStaticId.addEventListener("input", updateSummary);
@@ -586,6 +642,12 @@ function init() {
   });
   els.submitButton.addEventListener("click", submitAudit);
   els.resetButton.addEventListener("click", resetAuditForm);
+
+  document.addEventListener("click", (event) => {
+    if (!els.rankPicker.contains(event.target)) {
+      closeRankMenu();
+    }
+  });
 
   const savedLogin = localStorage.getItem(storageKey);
   if (savedLogin) {
