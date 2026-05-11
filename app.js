@@ -71,24 +71,38 @@ function functionUrl(name) {
   return `${config.supabaseUrl.replace(/\/$/, "")}/functions/v1/${name}`;
 }
 
-async function callFunction(name, payload) {
-  const response = await fetch(functionUrl(name), {
-    method: "POST",
+function restUrl(query) {
+  return `${config.supabaseUrl.replace(/\/$/, "")}/rest/v1/${query}`;
+}
+
+async function apiFetchJson(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
     headers: {
       "Content-Type": "application/json",
-      "apikey": config.supabasePublishableKey,
-      "Authorization": `Bearer ${config.supabasePublishableKey}`
-    },
-    body: JSON.stringify(payload)
+      apikey: config.supabasePublishableKey,
+      Authorization: `Bearer ${config.supabasePublishableKey}`,
+      ...(options.headers || {})
+    }
   });
 
-  const data = await response.json().catch(() => ({}));
+  const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error(data.error || "Сталася помилка під час звернення до сервера.");
+    const message =
+      (data && (data.message || data.error || data.msg || data.details)) ||
+      "Не вдалося отримати дані із Supabase.";
+    throw new Error(message);
   }
 
   return data;
+}
+
+async function callFunction(name, payload) {
+  return apiFetchJson(functionUrl(name), {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 }
 
 function escapeHtml(value) {
@@ -219,9 +233,7 @@ function renderHistory() {
       const before = entry.previous_rank_name
         ? formatRank(entry.previous_rank_number, entry.previous_rank_name)
         : "Не у фракції";
-      const after = entry.new_rank_name
-        ? formatRank(entry.new_rank_number, entry.new_rank_name)
-        : "—";
+      const after = entry.new_rank_name ? formatRank(entry.new_rank_number, entry.new_rank_name) : "—";
 
       return `
         <article class="history-item">
@@ -254,6 +266,18 @@ function updateActionVisibility() {
   els.rankFieldBlock.classList.toggle("hidden", fireMode);
 }
 
+function fireModeText(member, nextRank) {
+  if (state.actionType === "fire") {
+    return " зі статусом звільнення";
+  }
+
+  if (!nextRank) {
+    return "";
+  }
+
+  return ` з переходом на ранг ${formatRank(nextRank.rank_number, nextRank.rank_name)}`;
+}
+
 function updateSummary() {
   if (!state.currentUser) {
     return;
@@ -277,8 +301,7 @@ function updateSummary() {
       return;
     }
 
-    const ending = fireModeText(member, nextRank);
-    els.summaryText.textContent = `${state.currentUser.full_name} оформить дію "${actionLabel}" для ${member.full_name}${ending}.`;
+    els.summaryText.textContent = `${state.currentUser.full_name} оформить дію "${actionLabel}" для ${member.full_name}${fireModeText(member, nextRank)}.`;
   }
 
   if (reasonText) {
@@ -286,18 +309,6 @@ function updateSummary() {
   } else {
     setStatusMessage("");
   }
-}
-
-function fireModeText(member, nextRank) {
-  if (state.actionType === "fire") {
-    return " зі статусом звільнення";
-  }
-
-  if (!nextRank) {
-    return "";
-  }
-
-  return ` з переходом на ранг ${formatRank(nextRank.rank_number, nextRank.rank_name)}`;
 }
 
 function resetAuditForm() {
@@ -309,9 +320,11 @@ function resetAuditForm() {
   els.hireFullName.value = "";
   els.hireStaticId.value = "";
   els.reasonInput.value = "";
+
   if (state.ranks[0]) {
     els.newRankSelect.value = String(state.ranks[0].rank_number);
   }
+
   if (state.members[0]) {
     els.targetSelect.value = state.members[0].static_id;
   }
@@ -319,6 +332,52 @@ function resetAuditForm() {
   updateActionVisibility();
   updateExistingTargetFields();
   setStatusMessage("");
+}
+
+async function fetchBootstrapData(loginCode) {
+  const encodedLogin = encodeURIComponent(loginCode);
+
+  const currentUserPromise = apiFetchJson(
+    restUrl(
+      `members?select=static_id,full_name,login_code,current_rank_number,current_rank_name,is_leadership,is_active&login_code=eq.${encodedLogin}&is_active=eq.true&is_leadership=eq.true&limit=1`
+    )
+  );
+
+  const membersPromise = apiFetchJson(
+    restUrl(
+      "members?select=static_id,full_name,current_rank_number,current_rank_name,is_active&is_active=eq.true&order=full_name.asc"
+    )
+  );
+
+  const ranksPromise = apiFetchJson(
+    restUrl("ranks?select=rank_number,rank_name,is_active,sort_order&is_active=eq.true&order=rank_number.asc")
+  );
+
+  const historyPromise = apiFetchJson(
+    restUrl(
+      "audit_history?select=id,action_type,initiator_full_name,target_full_name,target_static_id,previous_rank_number,previous_rank_name,new_rank_number,new_rank_name,reason_text,created_at&order=created_at.desc&limit=100"
+    )
+  );
+
+  const [currentUserRows, members, ranks, history] = await Promise.all([
+    currentUserPromise,
+    membersPromise,
+    ranksPromise,
+    historyPromise
+  ]);
+
+  const currentUser = Array.isArray(currentUserRows) ? currentUserRows[0] : null;
+
+  if (!currentUser) {
+    throw new Error("Логін не знайдено або для нього ще не відкрито доступ.");
+  }
+
+  return {
+    currentUser,
+    members: Array.isArray(members) ? members : [],
+    ranks: Array.isArray(ranks) ? ranks : [],
+    history: Array.isArray(history) ? history : []
+  };
 }
 
 async function handleLogin(event) {
@@ -344,14 +403,13 @@ async function handleLogin(event) {
 }
 
 async function bootstrapApp(loginCode) {
-  const functionName = config.bootstrapFunctionName || "app-bootstrap";
-  const data = await callFunction(functionName, { loginCode });
+  const data = await fetchBootstrapData(loginCode);
 
   state.loginCode = loginCode;
   state.currentUser = data.currentUser;
-  state.members = data.members || [];
-  state.ranks = data.ranks || [];
-  state.history = data.history || [];
+  state.members = data.members;
+  state.ranks = data.ranks;
+  state.history = data.history;
 
   localStorage.setItem(storageKey, loginCode);
 
