@@ -339,6 +339,27 @@ textarea {
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.field select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
+    rgba(255, 255, 255, 0.02);
+  color: var(--text);
+}
+
+.field select option {
+  background: #0d1624;
+  color: #eef3f9;
+}
+
+.field select option:checked,
+.field select option:hover {
+  background: #55779f;
+  color: #ffffff;
+}
+
 .field input:focus,
 .field select:focus,
 .field textarea:focus,
