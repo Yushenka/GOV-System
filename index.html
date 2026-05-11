@@ -114,9 +114,13 @@
 
             <div class="target-mode active" id="existingTargetBlock">
               <div class="form-grid two-col">
-                <label class="field single-field">
-                  <span>Оберіть працівника</span>
-                  <select id="targetSelect"></select>
+                <label class="field">
+                  <span>Введіть static ID</span>
+                  <input id="targetLookupInput" placeholder="Наприклад: 20061" />
+                </label>
+                <label class="field">
+                  <span>Працівник</span>
+                  <input id="targetResolvedName" readonly />
                 </label>
                 <label class="field">
                   <span>Static ID</span>
